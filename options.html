@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Autofill - Settings</title>
+  <link rel="stylesheet" href="options.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="background-decor"></div>
+  
+  <div class="container glass-panel">
+    <header class="header">
+      <div class="logo-area">
+        <div class="logo"></div>
+        <h1>Settings & Profile Details</h1>
+      </div>
+      <p class="subtitle">Complete your profile to enable seamless data science job form autofilling.</p>
+    </header>
+
+    <div class="form-container">
+      <form id="options-form">
+        
+        <!-- Personal Information -->
+        <section class="form-section">
+          <h2>Personal Information</h2>
+          <div class="grid">
+            <div class="input-group">
+              <label for="firstName">First Name</label>
+              <input type="text" id="firstName" name="firstName" placeholder="John">
+            </div>
+            <div class="input-group">
+              <label for="lastName">Last Name</label>
+              <input type="text" id="lastName" name="lastName" placeholder="Doe">
+            </div>
+            <div class="input-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" placeholder="johndoe@example.com">
+            </div>
+            <div class="input-group">
+              <label for="phone">Phone Number</label>
+              <input type="text" id="phone" name="phone" placeholder="(123) 456-7890">
+            </div>
+          </div>
+        </section>
+
+        <!-- Professional Links -->
+        <section class="form-section">
+          <h2>Professional Links (Data Science)</h2>
+          <div class="grid">
+            <div class="input-group">
+              <label for="linkedin">LinkedIn URL</label>
+              <input type="url" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/username">
+            </div>
+            <div class="input-group">
+              <label for="github">GitHub URL</label>
+              <input type="url" id="github" name="github" placeholder="https://github.com/username">
+            </div>
+            <div class="input-group">
+              <label for="portfolio">Portfolio/Website</label>
+              <input type="url" id="portfolio" name="portfolio" placeholder="https://yourdomain.com">
+            </div>
+            <div class="input-group">
+              <label for="kaggle">Kaggle URL</label>
+              <input type="url" id="kaggle" name="kaggle" placeholder="https://kaggle.com/username">
+            </div>
+          </div>
+        </section>
+
+        <!-- Experience & Skills -->
+        <section class="form-section">
+          <h2>Experience & Skills</h2>
+          <div class="input-group">
+            <label for="skills">Skills (Comma separated)</label>
+            <input type="text" id="skills" name="skills" placeholder="Python, SQL, Machine Learning, PyTorch, Pandas">
+          </div>
+          <div class="input-group full-width">
+            <label for="experience">Experience Summary (Auto-fills textareas and paragraphs)</label>
+            <textarea id="experience" name="experience" rows="4" placeholder="I am a Data Scientist with 4 years of experience building predictive models..."></textarea>
+          </div>
+          <div class="input-group full-width">
+            <label for="coverLetter">Cover Letter Content</label>
+            <textarea id="coverLetter" name="coverLetter" rows="4" placeholder="Dear Hiring Manager..."></textarea>
+          </div>
+        </section>
+
+        <!-- Common Checkboxes and Radios -->
+        <section class="form-section">
+          <h2>Work Authorization</h2>
+          <div class="grid">
+            <div class="input-group">
+              <label>Authorized to work in US/Local Country?</label>
+              <div class="radio-group">
+                <label><input type="radio" name="authorizedWork" value="Yes"> Yes</label>
+                <label><input type="radio" name="authorizedWork" value="No"> No</label>
+              </div>
+            </div>
+            <div class="input-group">
+              <label>Require sponsorship now or in the future?</label>
+              <div class="radio-group">
+                <label><input type="radio" name="requireSponsorship" value="Yes"> Yes</label>
+                <label><input type="radio" name="requireSponsorship" value="No"> No</label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- File Upload -->
+        <section class="form-section">
+          <h2>Resume / CV Upload</h2>
+          <p class="section-help">Upload your resume to automatically attach it to file picker fields.</p>
+          <div class="file-upload-area" id="file-drop-area">
+            <input type="file" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" hidden>
+            <button type="button" id="btn-browse-file" class="btn-secondary">Browse File</button>
+            <span id="file-name-display">No file selected</span>
+          </div>
+        </section>
+
+      </form>
+    </div>
+
+    <!-- Sticky Footer Actions -->
+    <div class="actions-footer">
+      <span id="save-status" class="status-msg"></span>
+      <button type="button" id="btn-save" class="btn-primary">Save Changes</button>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

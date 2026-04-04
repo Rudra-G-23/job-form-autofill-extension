@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Job Form Autofill",
+  "version": "1.0",
+  "description": "Autofills job applications. Tailored for data science specific fields, with file upload & boolean field support.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["fuse.js", "content.js"]
+    }
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}
