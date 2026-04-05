@@ -16,8 +16,23 @@
         <div class="logo"></div>
         <h1>Settings & Profile Details</h1>
       </div>
-      <p class="subtitle">Complete your profile to enable seamless data science job form autofilling.</p>
+      <p class="subtitle">Complete your profiles to enable seamless data-driven job form autofilling.</p>
     </header>
+
+    <!-- Profile Management -->
+    <div class="profile-manager">
+      <div class="input-group" style="flex: 1;">
+        <label for="profileSelector">Active Profile</label>
+        <select id="profileSelector">
+          <!-- Populated by JS -->
+        </select>
+      </div>
+      <div class="profile-actions">
+        <button type="button" id="btn-rename-profile" class="btn-secondary">Rename</button>
+        <button type="button" id="btn-add-profile" class="btn-secondary">Add New</button>
+        <button type="button" id="btn-delete-profile" class="btn-danger" style="background: rgba(255,0,0,0.1); color: red; border: 1px solid rgba(255,0,0,0.3);">Delete</button>
+      </div>
+    </div>
 
     <div class="form-container">
       <form id="options-form">
@@ -27,27 +42,144 @@
           <h2>Personal Information</h2>
           <div class="grid">
             <div class="input-group">
-              <label for="firstName">First Name</label>
-              <input type="text" id="firstName" name="firstName" placeholder="John">
+              <label for="applicantName">Applicant Full Name / Legal Name</label>
+              <input type="text" id="applicantName" name="applicantName" placeholder="John Doe">
             </div>
             <div class="input-group">
-              <label for="lastName">Last Name</label>
-              <input type="text" id="lastName" name="lastName" placeholder="Doe">
+              <label for="gender">Gender</label>
+              <select id="gender" name="gender">
+                <option value="">Select...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+              </select>
             </div>
+            <div class="input-group">
+              <label for="dob">Date of Birth (DOB)</label>
+              <input type="date" id="dob" name="dob">
+            </div>
+            <div class="input-group">
+              <label for="fathersName">Father's Name</label>
+              <input type="text" id="fathersName" name="fathersName" placeholder="Richard Doe">
+            </div>
+            <div class="input-group">
+              <label for="mothersName">Mother's Name</label>
+              <input type="text" id="mothersName" name="mothersName" placeholder="Jane Doe">
+            </div>
+            <div class="input-group">
+              <label for="bloodGroup">Blood Group</label>
+              <select id="bloodGroup" name="bloodGroup">
+                <option value="">Select...</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="maritalStatus">Marital Status</label>
+              <select id="maritalStatus" name="maritalStatus">
+                <option value="">Select...</option>
+                <option value="Single">Single</option>
+                <option value="Married">Married</option>
+                <option value="Separated">Separated</option>
+                <option value="Divorced">Divorced</option>
+                <option value="Widowed">Widowed</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="religion">Religion</label>
+              <input type="text" id="religion" name="religion" placeholder="Hindu, Christian, etc.">
+            </div>
+            <div class="input-group">
+              <label for="caste">Category / Caste</label>
+              <input type="text" id="caste" name="caste" placeholder="General, OBC, SC, ST etc.">
+            </div>
+            <div class="input-group">
+              <label for="nationality">Nationality / Citizenship Status</label>
+              <input type="text" id="nationality" name="nationality" placeholder="Indian, US Citizen, etc.">
+            </div>
+          </div>
+        </section>
+
+        <!-- Contact Information -->
+        <section class="form-section">
+          <h2>Contact Information</h2>
+          <div class="grid">
             <div class="input-group">
               <label for="email">Email</label>
               <input type="email" id="email" name="email" placeholder="johndoe@example.com">
             </div>
             <div class="input-group">
-              <label for="phone">Phone Number</label>
-              <input type="text" id="phone" name="phone" placeholder="(123) 456-7890">
+              <label for="phone">Mobile No</label>
+              <input type="text" id="phone" name="phone" placeholder="+1 (123) 456-7890">
+            </div>
+            <div class="input-group">
+              <label for="altPhone">Alternative Mobile No</label>
+              <input type="text" id="altPhone" name="altPhone" placeholder="+1 (987) 654-3210">
+            </div>
+          </div>
+        </section>
+
+        <!-- Address Details -->
+        <section class="form-section">
+          <h2>Address Details</h2>
+          <div class="input-group full-width">
+            <label for="address">Full Address / Street</label>
+            <textarea id="address" name="address" rows="2" placeholder="123 Main Street, Apt 4B..."></textarea>
+          </div>
+          <div class="grid">
+            <div class="input-group">
+              <label for="postOffice">Post Office</label>
+              <input type="text" id="postOffice" name="postOffice" placeholder="Main PO">
+            </div>
+            <div class="input-group">
+              <label for="district">District / City</label>
+              <input type="text" id="district" name="district" placeholder="District Name">
+            </div>
+            <div class="input-group">
+              <label for="state">State / Province</label>
+              <input type="text" id="state" name="state" placeholder="State Name">
+            </div>
+            <div class="input-group">
+              <label for="zipCode">Zip Code / Pincode</label>
+              <input type="text" id="zipCode" name="zipCode" placeholder="123456">
+            </div>
+          </div>
+        </section>
+
+        <!-- Education Details -->
+        <section class="form-section">
+          <h2>Education Qualifications</h2>
+          <p class="section-help">Provide details for your highest or most relevant degree.</p>
+          <div class="grid">
+            <div class="input-group">
+              <label for="educationExam">Examination Passed (Degree)</label>
+              <input type="text" id="educationExam" name="educationExam" placeholder="B.Tech Computer Science, B.Sc, etc.">
+            </div>
+            <div class="input-group">
+              <label for="educationSchool">School / University details</label>
+              <input type="text" id="educationSchool" name="educationSchool" placeholder="University Name">
+            </div>
+            <div class="input-group">
+              <label for="educationYear">Year of Passing</label>
+              <input type="text" id="educationYear" name="educationYear" placeholder="YYYY (e.g. 2024)">
+            </div>
+            <div class="input-group">
+              <label for="educationMark">Marks / CGPA / Percentage</label>
+              <input type="text" id="educationMark" name="educationMark" placeholder="8.5 CGPA or 85%">
             </div>
           </div>
         </section>
 
         <!-- Professional Links -->
         <section class="form-section">
-          <h2>Professional Links (Data Science)</h2>
+          <h2>Professional Links</h2>
           <div class="grid">
             <div class="input-group">
               <label for="linkedin">LinkedIn URL</label>
@@ -68,27 +200,49 @@
           </div>
         </section>
 
-        <!-- Experience & Skills -->
+        <!-- Experience & Salary -->
         <section class="form-section">
-          <h2>Experience & Skills</h2>
-          <div class="input-group">
+          <h2>Experience & Salary</h2>
+          <div class="grid">
+            <div class="input-group">
+              <label for="currentSalary">Current Salary (CTC)</label>
+              <input type="text" id="currentSalary" name="currentSalary" placeholder="e.g. 10 LPA / $100k">
+            </div>
+            <div class="input-group">
+              <label for="expectedSalary">Expected Salary (CTC)</label>
+              <input type="text" id="expectedSalary" name="expectedSalary" placeholder="e.g. 15 LPA / $150k">
+            </div>
+          </div>
+          <div class="input-group full-width" style="margin-top: 15px;">
             <label for="skills">Skills (Comma separated)</label>
             <input type="text" id="skills" name="skills" placeholder="Python, SQL, Machine Learning, PyTorch, Pandas">
           </div>
-          <div class="input-group full-width">
-            <label for="experience">Experience Summary (Auto-fills textareas and paragraphs)</label>
-            <textarea id="experience" name="experience" rows="4" placeholder="I am a Data Scientist with 4 years of experience building predictive models..."></textarea>
-          </div>
-          <div class="input-group full-width">
-            <label for="coverLetter">Cover Letter Content</label>
-            <textarea id="coverLetter" name="coverLetter" rows="4" placeholder="Dear Hiring Manager..."></textarea>
+          <div class="input-group full-width" style="margin-top: 15px;">
+            <label for="experience">Experience Summary / Details (Auto-fills textareas)</label>
+            <textarea id="experience" name="experience" rows="4" placeholder="I am a professional with X years of experience..."></textarea>
           </div>
         </section>
 
-        <!-- Common Checkboxes and Radios -->
+        <!-- Common Questions & Custom Q&A -->
         <section class="form-section">
-          <h2>Work Authorization</h2>
+          <h2>Custom Questions & Common Checks</h2>
+          
+          <!-- Common Radios -->
           <div class="grid">
+            <div class="input-group full-width">
+              <label>Have you been employed by this company before?</label>
+              <div class="radio-group">
+                <label><input type="radio" name="employedByCompany" value="Yes"> Yes</label>
+                <label><input type="radio" name="employedByCompany" value="No"> No</label>
+              </div>
+            </div>
+            <div class="input-group full-width">
+              <label>Do you know anyone from this company / Employee Referral?</label>
+              <div class="radio-group">
+                <label><input type="radio" name="knowAnyoneInCompany" value="Yes"> Yes</label>
+                <label><input type="radio" name="knowAnyoneInCompany" value="No"> No</label>
+              </div>
+            </div>
             <div class="input-group">
               <label>Authorized to work in US/Local Country?</label>
               <div class="radio-group">
@@ -104,12 +258,22 @@
               </div>
             </div>
           </div>
+
+          <!-- Custom Q&A Builder -->
+          <div style="margin-top:20px;">
+            <h3>Custom Q&A Builder</h3>
+            <p class="section-help">Add specific question/answer pairs for edge-cases. The extension will map the "Question/Label text" to the "Answer".</p>
+            <div id="custom-qa-container">
+              <!-- Q&A Rows injected via JS -->
+            </div>
+            <button type="button" id="btn-add-qa" class="btn-secondary" style="margin-top:10px;">+ Add Custom Answer</button>
+          </div>
         </section>
 
         <!-- File Upload -->
         <section class="form-section">
           <h2>Resume / CV Upload</h2>
-          <p class="section-help">Upload your resume to automatically attach it to file picker fields.</p>
+          <p class="section-help">Upload your resume. <strong style="color:var(--primary)">Resumes are saved per-profile!</strong></p>
           <div class="file-upload-area" id="file-drop-area">
             <input type="file" id="resumeFile" name="resumeFile" accept=".pdf,.doc,.docx" hidden>
             <button type="button" id="btn-browse-file" class="btn-secondary">Browse File</button>
@@ -123,7 +287,7 @@
     <!-- Sticky Footer Actions -->
     <div class="actions-footer">
       <span id="save-status" class="status-msg"></span>
-      <button type="button" id="btn-save" class="btn-primary">Save Changes</button>
+      <button type="button" id="btn-save" class="btn-primary">Save Profile Data</button>
     </div>
   </div>
 

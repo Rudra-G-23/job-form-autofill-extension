@@ -60,9 +60,17 @@ function getFieldContext(el) {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "DO_AUTOFILL") {
-    chrome.storage.local.get(null, (data) => {
+    chrome.storage.local.get(null, (appState) => {
+      // Determine data source (handle basic migration gracefully)
+      let data = appState;
+      if (appState.profiles && appState.activeProfileId && appState.profiles[appState.activeProfileId]) {
+        data = appState.profiles[appState.activeProfileId].data;
+      }
+
       // Setup data points for Fuse.js
-      const keys = Object.keys(data).filter(k => k !== 'resumeFile' && k !== 'resumeFileName' && k !== 'resumeFileType');
+      const keys = Object.keys(data).filter(k => 
+        k !== 'resumeFile' && k !== 'resumeFileName' && k !== 'resumeFileType' && k !== 'customQA'
+      );
       
       const searchItems = keys.map(key => ({
         key: key,
@@ -70,19 +78,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         searchTerms: camelToText(key) + " " + key // "firstName first name"
       }));
 
-      // Add alias terms for specific data science / generic fields
+      // Inject Custom Q&A answers
+      if (data.customQA && Array.isArray(data.customQA)) {
+        data.customQA.forEach((qa, idx) => {
+          const customKey = 'customQA_' + idx;
+          searchItems.push({
+            key: customKey,
+            value: qa.a,
+            searchTerms: qa.q // We search against the Question string defined by user
+          });
+          data[customKey] = qa.a; // Add to data object so the rest of the script can read the target value easily
+        });
+      }
+
+      // Add alias terms for specific forms
       searchItems.forEach(item => {
-        if (item.key === 'firstName') item.searchTerms += " first given";
-        if (item.key === 'lastName') item.searchTerms += " last family sur";
+        if (item.key === 'applicantName') item.searchTerms += " first last full name given family sur applicant";
+        if (item.key === 'fathersName') item.searchTerms += " father dad parent guardian";
+        if (item.key === 'mothersName') item.searchTerms += " mother mom parent";
+        if (item.key === 'dob') item.searchTerms += " date of birth dob birthday born";
+        if (item.key === 'gender') item.searchTerms += " gender sex orientation";
+        if (item.key === 'bloodGroup') item.searchTerms += " blood group type rhesus rh";
+        if (item.key === 'maritalStatus') item.searchTerms += " marital status marriage single spouse";
+        if (item.key === 'religion') item.searchTerms += " religion belief faith";
+        if (item.key === 'caste') item.searchTerms += " caste category community obc gen sc st";
+        if (item.key === 'nationality') item.searchTerms += " nationality citizenship legal right citizen country status";
         if (item.key === 'email') item.searchTerms += " e-mail mail address";
         if (item.key === 'phone') item.searchTerms += " mobile cell contact telephone";
+        if (item.key === 'altPhone') item.searchTerms += " alternative emergency secondary backup mobile";
+        if (item.key === 'address') item.searchTerms += " address street line residential current permanent location";
+        if (item.key === 'postOffice') item.searchTerms += " post office po ps police station";
+        if (item.key === 'district') item.searchTerms += " district city town locality";
+        if (item.key === 'state') item.searchTerms += " state province region";
+        if (item.key === 'zipCode') item.searchTerms += " zip code pincode postal";
+        if (item.key === 'educationExam') item.searchTerms += " education examination passed degree qualification course btech bsc highest level";
+        if (item.key === 'educationSchool') item.searchTerms += " school university college institute institution board";
+        if (item.key === 'educationYear') item.searchTerms += " year of passing yop graduation finished completed dates";
+        if (item.key === 'educationMark') item.searchTerms += " marks cgpa percentage score grade performance gpa";
+        if (item.key === 'currentSalary') item.searchTerms += " current salary ctc drawn earning paying compensation base";
+        if (item.key === 'expectedSalary') item.searchTerms += " expected salary ctc expectation requirement desired compensation";
+        if (item.key === 'employedByCompany') item.searchTerms += " employed by this company before worked here past employee";
+        if (item.key === 'knowAnyoneInCompany') item.searchTerms += " know anyone from this company referral relative friend network connect";
         if (item.key === 'linkedin') item.searchTerms += " linked in profile network url";
         if (item.key === 'github') item.searchTerms += " git hub code repository open source url";
         if (item.key === 'portfolio') item.searchTerms += " website personal blog url";
-        if (item.key === 'experience') item.searchTerms += " history background work employment detail summary paragraph";
         if (item.key === 'skills') item.searchTerms += " technologies stack tools programming languages";
+        if (item.key === 'experience') item.searchTerms += " history background work employment detail summary paragraph duties responsibilities title role setup description";
         if (item.key === 'kaggle') item.searchTerms += " kaggle competition data science profile url";
-        if (item.key === 'coverLetter') item.searchTerms += " cover letter message note to hiring manager";
         if (item.key === 'authorizedWork') item.searchTerms += " legally authorized work us sponsorship right law";
         if (item.key === 'requireSponsorship') item.searchTerms += " require sponsorship visa h1b now future";
       });
