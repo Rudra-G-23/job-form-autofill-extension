@@ -43,12 +43,32 @@ function getFieldContext(el) {
       labelText = parentLabel.innerText.toLowerCase();
     }
   }
+  // 7. Look for Google Forms / specific structure headings
+  if (!labelText) {
+    const container = el.closest('[role="listitem"]') || el.closest('.geS5n') || el.closest('.Qr7Oae') || el.closest('.zEbbtd') || el.closest('div[role="listitem"]');
+    if (container) {
+       const heading = container.querySelector('[role="heading"]');
+       if (heading) {
+          labelText = heading.innerText.toLowerCase();
+       } else {
+          // just grab the first snippet of text
+          labelText = container.innerText.toLowerCase().substring(0, 150);
+       }
+    }
+  }
 
-  // 7. Text immediately preceding the input (heuristic)
+  // 8. Text immediately preceding the input (heuristic) or general parent walk
   if (!labelText && el.parentElement) {
-    const parentText = el.parentElement.innerText;
-    if (parentText && parentText.length < 50) {
-      labelText = parentText.toLowerCase();
+    let current = el.parentElement;
+    let distance = 0;
+    while (current && distance < 3) {
+      const text = current.innerText || "";
+      if (text.trim().length > 0 && text.trim().length < 150) {
+          labelText = text.toLowerCase();
+          if (text.trim().length > 3) break;
+      }
+      current = current.parentElement;
+      distance++;
     }
   }
 
@@ -256,11 +276,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
              } else {
                 // Text input / textarea
-                el.value = data[match.item.key];
+                el.focus();
                 
-                // Trigger events so frontend frameworks (React/Vue) detect the change
+                // Try React/Wiz native setter first
+                let nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+                let nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+                
+                if (el.tagName.toLowerCase() === 'textarea' && nativeTextAreaValueSetter) {
+                   nativeTextAreaValueSetter.call(el, data[match.item.key]);
+                } else if (nativeInputValueSetter) {
+                   nativeInputValueSetter.call(el, data[match.item.key]);
+                } else {
+                   el.value = data[match.item.key];
+                }
+                
+                // Trigger events so frontend frameworks (React/Vue/Angular/Wiz) detect the change
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.blur();
                 el.dispatchEvent(new Event('blur', { bubbles: true }));
                 
                 // Add a visual highlight
