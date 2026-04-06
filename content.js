@@ -74,8 +74,8 @@ function getFieldContext(el) {
 
   if (labelText) context.push(labelText);
 
-  // Clean up newlines and extra spaces
-  return context.join(" ").replace(/\n/g, " ").trim();
+  // Clean up newlines and extra spaces and punctuation
+  return context.join(" ").replace(/\n/g, " ").replace(/[^a-zA-Z0-9 ]/g, " ").replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -151,7 +151,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       const fuseOptions = {
         includeScore: true,
-        threshold: 0.5, // Lower threshold = exact match needed. 0.5 is somewhat fuzzy.
+        threshold: 0.7, // Relax string-distance threshold
+        ignoreLocation: true,
         keys: ['searchTerms']
       };
       
@@ -258,10 +259,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         const results = fuse.search(contextInfo);
         
-        if (results.length > 0) {
-          const match = results[0];
-          // We rely on score < 0.6 as a threshold for confidence
-          if (match.score < 0.6 && data[match.item.key]) {
+        let match = null;
+        if (results.length > 0 && results[0].score < 0.65) {
+           match = results[0];
+        } else {
+           // Fallback: check if any searchTerm word >= 4 chars is present in contextInfo
+           for (let item of searchItems) {
+               const terms = item.searchTerms.split(" ").filter(t => t.length > 3); // words like 'name', 'email', 'phone'
+               for (let t of terms) {
+                   // if the context string includes the term (e.g. "enter your phone" includes "phone")
+                   if (contextInfo.includes(t)) {
+                       match = { item: item, score: 0.5 };
+                       break;
+                   }
+               }
+               if (match) break;
+           }
+        }
+        
+        if (match) {
+           if (data[match.item.key]) {
              
              // If Select dropdown, we do a fuzzy search of the options
              if (el.tagName.toLowerCase() === 'select') {
@@ -286,15 +303,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                    nativeTextAreaValueSetter.call(el, data[match.item.key]);
                 } else if (nativeInputValueSetter) {
                    nativeInputValueSetter.call(el, data[match.item.key]);
-                } else {
-                   el.value = data[match.item.key];
                 }
+                el.value = data[match.item.key];
                 
                 // Trigger events so frontend frameworks (React/Vue/Angular/Wiz) detect the change
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                
+                // Disaptch keyboard events to trigger certain lazy listeners
+                el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key: 'Enter' }));
+                el.dispatchEvent(new KeyboardEvent('keyup',   { bubbles: true, composed: true, key: 'Enter' }));
+
                 el.blur();
-                el.dispatchEvent(new Event('blur', { bubbles: true }));
+                el.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
                 
                 // Add a visual highlight
                 const oldBg = el.style.backgroundColor;
