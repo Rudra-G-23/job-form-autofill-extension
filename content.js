@@ -1,4 +1,5 @@
-// Utility to convert Base64 to Blob
+// ====== UTILITIES ======
+
 function base64ToBlob(base64, type = 'application/octet-stream') {
   const binaryString = window.atob(base64.split(',')[1]);
   const length = binaryString.length;
@@ -9,62 +10,58 @@ function base64ToBlob(base64, type = 'application/octet-stream') {
   return new Blob([bytes], { type });
 }
 
-// Convert camelCase key to readable text for better fuzzy matching
 function camelToText(text) {
+  if (!text) return "";
   return text.replace(/([A-Z])/g, " $1").toLowerCase();
 }
 
+// ====== FIELD CONTEXT EXTRACTION ======
+
 function getFieldContext(el) {
   let context = [];
-  
-  // 1. Placeholder
-  if (el.placeholder) context.push(el.placeholder.toLowerCase());
-  
-  // 2. Name attribute
-  if (el.name) context.push(camelToText(el.name));
-  
-  // 3. ID attribute
-  if (el.id) context.push(camelToText(el.id));
-  
-  // 4. aria-label
-  if (el.getAttribute('aria-label')) context.push(el.getAttribute('aria-label').toLowerCase());
 
-  // 5. Associated Label
+  // 1. Attributes
+  if (el.placeholder) context.push(el.placeholder);
+  if (el.name) context.push(camelToText(el.name));
+  if (el.id) context.push(camelToText(el.id));
+  if (el.getAttribute('aria-label')) context.push(el.getAttribute('aria-label'));
+  if (el.getAttribute('aria-labelledby')) {
+     const labelledBy = document.getElementById(el.getAttribute('aria-labelledby'));
+     if (labelledBy) context.push(labelledBy.innerText);
+  }
+
+  // 2. Labels
   let labelText = '';
   if (el.id) {
     const label = document.querySelector(`label[for="${el.id}"]`);
-    if (label) labelText = label.innerText.toLowerCase();
+    if (label) labelText = label.innerText;
   }
-  
-  // 6. Closest parent label
   if (!labelText) {
     const parentLabel = el.closest('label');
-    if (parentLabel && parentLabel.innerText) {
-      labelText = parentLabel.innerText.toLowerCase();
-    }
+    if (parentLabel && parentLabel.innerText) labelText = parentLabel.innerText;
   }
-  // 7. Look for Google Forms / specific structure headings
+  
+  // 3. Fallbacks for dynamic forms (Google Forms, etc.)
   if (!labelText) {
-    const container = el.closest('[role="listitem"]') || el.closest('.geS5n') || el.closest('.Qr7Oae') || el.closest('.zEbbtd') || el.closest('div[role="listitem"]');
+    const container = el.closest('[role="listitem"], .geS5n, .Qr7Oae, .zEbbtd');
     if (container) {
        const heading = container.querySelector('[role="heading"]');
        if (heading) {
-          labelText = heading.innerText.toLowerCase();
+          labelText = heading.innerText;
        } else {
-          // just grab the first snippet of text
-          labelText = container.innerText.toLowerCase().substring(0, 150);
+          labelText = container.innerText.substring(0, 150);
        }
     }
   }
 
-  // 8. Text immediately preceding the input (heuristic) or general parent walk
+  // 4. Proximity Text
   if (!labelText && el.parentElement) {
     let current = el.parentElement;
     let distance = 0;
     while (current && distance < 3) {
       const text = current.innerText || "";
       if (text.trim().length > 0 && text.trim().length < 150) {
-          labelText = text.toLowerCase();
+          labelText = text;
           if (text.trim().length > 3) break;
       }
       current = current.parentElement;
@@ -74,264 +71,333 @@ function getFieldContext(el) {
 
   if (labelText) context.push(labelText);
 
-  // Clean up newlines and extra spaces and punctuation
-  return context.join(" ").replace(/\n/g, " ").replace(/[^a-zA-Z0-9 ]/g, " ").replace(/\s+/g, ' ').trim().toLowerCase();
+  // Normalize: lower case, remove punctuation, trim
+  return context.join(" ")
+    .replace(/\n/g, " ")
+    .replace(/[^a-zA-Z0-9 ]/g, " ")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
+// ====== STATE ======
+let autofillEnabled = false;
+let autofillData = null;
+let fuse = null;
+let searchItems = [];
+let processedElements = new WeakSet();
+let filledCount = 0;
+let processedRadios = new Set();
+
+
+// ====== CORE LOGIC ======
+
+function initFuse(appState) {
+  let data = appState;
+  if (appState.profiles && appState.activeProfileId && appState.profiles[appState.activeProfileId]) {
+    data = appState.profiles[appState.activeProfileId].data;
+  }
+  autofillData = data;
+
+  const keys = Object.keys(data).filter(k => 
+    k !== 'resumeFile' && k !== 'resumeFileName' && k !== 'resumeFileType' && k !== 'customQA'
+  );
+
+  searchItems = keys.map(key => ({
+    key: key,
+    value: data[key],
+    searchTerms: camelToText(key) + " " + key
+  }));
+
+  if (data.customQA && Array.isArray(data.customQA)) {
+    data.customQA.forEach((qa, idx) => {
+      const customKey = 'customQA_' + idx;
+      searchItems.push({
+        key: customKey,
+        value: qa.a,
+        searchTerms: qa.q
+      });
+      autofillData[customKey] = qa.a;
+    });
+  }
+
+  // Term Definitions
+  const aliases = {
+    applicantName: "first last full name given family sur applicant",
+    fathersName: "father dad parent guardian",
+    mothersName: "mother mom parent",
+    dob: "date of birth dob birthday born",
+    gender: "gender sex orientation",
+    bloodGroup: "blood group type rhesus rh",
+    maritalStatus: "marital status marriage single spouse",
+    religion: "religion belief faith",
+    caste: "caste category community obc gen sc st",
+    nationality: "nationality citizenship legal right citizen country status",
+    email: "e-mail mail address",
+    phone: "mobile cell contact telephone",
+    altPhone: "alternative emergency secondary backup mobile",
+    address: "address street line residential current permanent location",
+    postOffice: "post office po ps police station",
+    district: "district city town locality",
+    state: "state province region",
+    zipCode: "zip code pincode postal",
+    educationExam: "education examination passed degree qualification course btech bsc highest level",
+    educationSchool: "school university college institute institution board",
+    educationYear: "year of passing yop graduation finished completed dates",
+    educationMark: "marks cgpa percentage score grade performance gpa",
+    currentSalary: "current salary ctc drawn earning paying compensation base",
+    expectedSalary: "expected salary ctc expectation requirement desired compensation",
+    employedByCompany: "employed by this company before worked here past employee",
+    knowAnyoneInCompany: "know anyone from this company referral relative friend network connect",
+    linkedin: "linked in profile network url",
+    github: "git hub code repository open source url",
+    portfolio: "website personal blog url",
+    skills: "technologies stack tools programming languages",
+    experience: "history background work employment detail summary paragraph duties responsibilities title role setup description",
+    kaggle: "kaggle competition data science profile url",
+    authorizedWork: "legally authorized work us sponsorship right law",
+    requireSponsorship: "require sponsorship visa h1b now future"
+  };
+
+  searchItems.forEach(item => {
+    if (aliases[item.key]) {
+      item.searchTerms += " " + aliases[item.key];
+    }
+  });
+
+  const fuseOptions = {
+    includeScore: true,
+    threshold: 0.65, // Tighter string-distance threshold (60-70% goal)
+    ignoreLocation: true,
+    keys: ['searchTerms']
+  };
+
+  if (typeof Fuse !== 'undefined') {
+    fuse = new Fuse(searchItems, fuseOptions);
+  } else {
+    console.error("[Smart Autofill] Fuse.js not found!");
+  }
+}
+
+function setValueRobustly(el, value) {
+  el.focus();
+  
+  // Try native React/Wiz setters
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+
+  if (el.tagName.toLowerCase() === 'textarea' && nativeTextAreaValueSetter) {
+     nativeTextAreaValueSetter.call(el, value);
+  } else if (nativeInputValueSetter) {
+     nativeInputValueSetter.call(el, value);
+  } else {
+     el.value = value;
+  }
+  
+  // Trigger DOM events for frameworks
+  el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+  el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key: 'Enter' }));
+  el.dispatchEvent(new KeyboardEvent('keyup',   { bubbles: true, composed: true, key: 'Enter' }));
+  
+  el.blur();
+  el.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
+
+  // Visual highlight
+  const oldBg = el.style.backgroundColor;
+  el.style.backgroundColor = 'rgba(94, 23, 235, 0.1)';
+  setTimeout(() => { if (el) el.style.backgroundColor = oldBg; }, 1500);
+}
+
+function processElement(el) {
+  if (processedElements.has(el) || el.disabled || el.readOnly || el.type === 'hidden' || el.type === 'submit' || el.type === 'button') {
+    return;
+  }
+
+  // Handle Divs acting as textboxes (ContentEditable / Role=Textbox)
+  const isContentEditable = el.getAttribute('contenteditable') === 'true' || el.getAttribute('role') === 'textbox';
+
+  // Extract Context
+  const contextInfo = getFieldContext(el);
+  if (!contextInfo) return; 
+
+  console.log(`[Smart Autofill] Analyzing field: "${contextInfo}"`);
+  processedElements.add(el); // Mark as processed
+
+  // File Upload
+  if (el.type === 'file') {
+    if (autofillData.resumeFile && autofillData.resumeFileName) {
+      if (contextInfo.includes('resume') || contextInfo.includes('cv') || contextInfo.includes('upload')) {
+        try {
+          const blob = base64ToBlob(autofillData.resumeFile, autofillData.resumeFileType);
+          const file = new File([blob], autofillData.resumeFileName, { type: autofillData.resumeFileType });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          el.files = dt.files;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          filledCount++;
+          console.log(`[Smart Autofill] => Filled File: ${autofillData.resumeFileName}`);
+        } catch (e) {
+          console.error("[Smart Autofill] File autofill failed", e);
+        }
+      }
+    }
+    return;
+  }
+
+  // Radios / Checkboxes
+  if (el.type === 'radio' || el.type === 'checkbox') {
+    const groupName = el.name;
+    if (groupName && processedRadios.has(groupName)) return;
+
+    let questionContext = contextInfo;
+    let container = el.closest('fieldset, .radio-group, .form-group, div');
+    if (container && container.innerText) {
+      questionContext = container.innerText.toLowerCase().substring(0, 150);
+    }
+
+    const results = fuse.search(questionContext);
+    if (results.length > 0 && results[0].score < 0.6) { // Score ~ 60%
+      const matchKey = results[0].item.key;
+      const targetValue = autofillData[matchKey];
+
+      if (targetValue) {
+        let matchingInput = null;
+        if (groupName) {
+          document.querySelectorAll(`input[name="${groupName}"]`).forEach(radio => {
+             const rc = getFieldContext(radio);
+             const tv = targetValue.toLowerCase();
+             if (radio.value.toLowerCase() === tv || rc.includes(tv) || radio.id.toLowerCase().includes(tv)) matchingInput = radio;
+          });
+        } else {
+           const tv = targetValue.toLowerCase();
+           if (el.value.toLowerCase() === tv || contextInfo.includes(tv)) matchingInput = el;
+        }
+
+        if (matchingInput) {
+          matchingInput.checked = true;
+          matchingInput.dispatchEvent(new Event('change', { bubbles: true }));
+          matchingInput.dispatchEvent(new Event('click', { bubbles: true }));
+          if (groupName) processedRadios.add(groupName);
+          filledCount++;
+          console.log(`[Smart Autofill] => Checked Radio/Box. Field: ${contextInfo} | Map: ${matchKey} (${targetValue}) | Score: ${results[0].score.toFixed(2)}`);
+        }
+      }
+    }
+    return;
+  }
+
+  // Text, URL, Email, Textarea, Select, ContentEditable
+  const results = fuse.search(contextInfo);
+  let match = null;
+
+  if (results.length > 0 && results[0].score <= 0.65) {
+     match = results[0];
+  } else {
+     // Fallback strict substring match
+     for (let item of searchItems) {
+         const terms = item.searchTerms.split(" ").filter(t => t.length > 3);
+         for (let t of terms) {
+             if (contextInfo.includes(t)) {
+                 match = { item: item, score: 0.5 };
+                 break;
+             }
+         }
+         if (match) break;
+     }
+  }
+
+  if (match && autofillData[match.item.key]) {
+      const val = autofillData[match.item.key];
+
+      if (el.tagName.toLowerCase() === 'select') {
+          let options = Array.from(el.options);
+          let targetFuzzy = new Fuse(options.map((opt, i) => ({ text: opt.text, index: i })), { keys: ['text'], threshold: 0.4 });
+          let optResults = targetFuzzy.search(val);
+          if (optResults.length > 0) {
+            el.selectedIndex = optResults[0].item.index;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            filledCount++;
+            console.log(`[Smart Autofill] => Selected Dropdown. Field: ${contextInfo} | Map: ${match.item.key} | Score: ${match.score.toFixed(2)}`);
+          }
+      } else if (isContentEditable) {
+          // React/Google Forms editable divs
+          el.focus();
+          el.innerText = val;
+          el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+          el.blur();
+          filledCount++;
+          
+          const oldBg = el.style.backgroundColor;
+          el.style.backgroundColor = 'rgba(94, 23, 235, 0.1)';
+          setTimeout(() => { if (el) el.style.backgroundColor = oldBg; }, 1500);
+
+          console.log(`[Smart Autofill] => Filled ContentEditable. Field: ${contextInfo} | Map: ${match.item.key} | Score: ${match.score.toFixed(2)}`);
+      } else {
+          // Standard Inputs / Textareas
+          setValueRobustly(el, val);
+          filledCount++;
+          console.log(`[Smart Autofill] => Filled Input. Field: ${contextInfo} | Map: ${match.item.key} | Score: ${match.score.toFixed(2)}`);
+      }
+  } else if (!match) {
+     console.log(`[Smart Autofill] No solid match for field: "${contextInfo}"`);
+  }
+}
+
+function getFillableElements(root = document) {
+  return Array.from(root.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select, [contenteditable="true"], [role="textbox"]'));
+}
+
+// ====== MUTATION OBSERVER ======
+const domObserver = new MutationObserver((mutations) => {
+  if (!autofillEnabled || !fuse) return;
+  
+  for (const mutation of mutations) {
+    if (mutation.addedNodes.length > 0) {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const elements = getFillableElements(node);
+          if (node.matches && node.matches('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select, [contenteditable="true"], [role="textbox"]')) {
+              elements.push(node);
+          }
+          elements.forEach(processElement);
+        }
+      });
+    }
+  }
+});
+
+
+// ====== EVENT LISTENER ======
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "DO_AUTOFILL") {
+    
+    // Enable state
+    autofillEnabled = true;
+    filledCount = 0;
+    
+    console.log("[Smart Autofill] Autofill Initialized on Document.");
+
     chrome.storage.local.get(null, (appState) => {
-      // Determine data source (handle basic migration gracefully)
-      let data = appState;
-      if (appState.profiles && appState.activeProfileId && appState.profiles[appState.activeProfileId]) {
-        data = appState.profiles[appState.activeProfileId].data;
-      }
-
-      // Setup data points for Fuse.js
-      const keys = Object.keys(data).filter(k => 
-        k !== 'resumeFile' && k !== 'resumeFileName' && k !== 'resumeFileType' && k !== 'customQA'
-      );
-      
-      const searchItems = keys.map(key => ({
-        key: key,
-        value: data[key],
-        searchTerms: camelToText(key) + " " + key // "firstName first name"
-      }));
-
-      // Inject Custom Q&A answers
-      if (data.customQA && Array.isArray(data.customQA)) {
-        data.customQA.forEach((qa, idx) => {
-          const customKey = 'customQA_' + idx;
-          searchItems.push({
-            key: customKey,
-            value: qa.a,
-            searchTerms: qa.q // We search against the Question string defined by user
-          });
-          data[customKey] = qa.a; // Add to data object so the rest of the script can read the target value easily
-        });
-      }
-
-      // Add alias terms for specific forms
-      searchItems.forEach(item => {
-        if (item.key === 'applicantName') item.searchTerms += " first last full name given family sur applicant";
-        if (item.key === 'fathersName') item.searchTerms += " father dad parent guardian";
-        if (item.key === 'mothersName') item.searchTerms += " mother mom parent";
-        if (item.key === 'dob') item.searchTerms += " date of birth dob birthday born";
-        if (item.key === 'gender') item.searchTerms += " gender sex orientation";
-        if (item.key === 'bloodGroup') item.searchTerms += " blood group type rhesus rh";
-        if (item.key === 'maritalStatus') item.searchTerms += " marital status marriage single spouse";
-        if (item.key === 'religion') item.searchTerms += " religion belief faith";
-        if (item.key === 'caste') item.searchTerms += " caste category community obc gen sc st";
-        if (item.key === 'nationality') item.searchTerms += " nationality citizenship legal right citizen country status";
-        if (item.key === 'email') item.searchTerms += " e-mail mail address";
-        if (item.key === 'phone') item.searchTerms += " mobile cell contact telephone";
-        if (item.key === 'altPhone') item.searchTerms += " alternative emergency secondary backup mobile";
-        if (item.key === 'address') item.searchTerms += " address street line residential current permanent location";
-        if (item.key === 'postOffice') item.searchTerms += " post office po ps police station";
-        if (item.key === 'district') item.searchTerms += " district city town locality";
-        if (item.key === 'state') item.searchTerms += " state province region";
-        if (item.key === 'zipCode') item.searchTerms += " zip code pincode postal";
-        if (item.key === 'educationExam') item.searchTerms += " education examination passed degree qualification course btech bsc highest level";
-        if (item.key === 'educationSchool') item.searchTerms += " school university college institute institution board";
-        if (item.key === 'educationYear') item.searchTerms += " year of passing yop graduation finished completed dates";
-        if (item.key === 'educationMark') item.searchTerms += " marks cgpa percentage score grade performance gpa";
-        if (item.key === 'currentSalary') item.searchTerms += " current salary ctc drawn earning paying compensation base";
-        if (item.key === 'expectedSalary') item.searchTerms += " expected salary ctc expectation requirement desired compensation";
-        if (item.key === 'employedByCompany') item.searchTerms += " employed by this company before worked here past employee";
-        if (item.key === 'knowAnyoneInCompany') item.searchTerms += " know anyone from this company referral relative friend network connect";
-        if (item.key === 'linkedin') item.searchTerms += " linked in profile network url";
-        if (item.key === 'github') item.searchTerms += " git hub code repository open source url";
-        if (item.key === 'portfolio') item.searchTerms += " website personal blog url";
-        if (item.key === 'skills') item.searchTerms += " technologies stack tools programming languages";
-        if (item.key === 'experience') item.searchTerms += " history background work employment detail summary paragraph duties responsibilities title role setup description";
-        if (item.key === 'kaggle') item.searchTerms += " kaggle competition data science profile url";
-        if (item.key === 'authorizedWork') item.searchTerms += " legally authorized work us sponsorship right law";
-        if (item.key === 'requireSponsorship') item.searchTerms += " require sponsorship visa h1b now future";
-      });
-
-      const fuseOptions = {
-        includeScore: true,
-        threshold: 0.7, // Relax string-distance threshold
-        ignoreLocation: true,
-        keys: ['searchTerms']
-      };
-      
-      // Fuse is loaded from background/manifest or inline
-      let fuse;
-      if (typeof Fuse !== 'undefined') {
-        fuse = new Fuse(searchItems, fuseOptions);
-      } else {
-        console.error("Fuse.js not found!");
+      initFuse(appState);
+      if (!fuse) {
         sendResponse({status: "error", error: "fuse_not_loaded"});
         return;
       }
 
-      let filledCount = 0;
+      // Initial Pass
+      const elements = getFillableElements();
+      elements.forEach(processElement);
+
+      // Start observing for dynamically added elements
+      domObserver.observe(document.body, { childList: true, subtree: true });
       
-      // Collect visible inputs
-      const elements = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), textarea, select'));
-      
-      // Group radios globally by name so we only process them once
-      let processedRadios = new Set();
-
-      elements.forEach(el => {
-        if (el.disabled || el.readOnly) return;
-
-        // --- Handle File Uploads ---
-        if (el.type === 'file') {
-          if (data.resumeFile && data.resumeFileName) {
-            try {
-              const fileContext = getFieldContext(el);
-              // usually if there's only one file field, it's for resume. But let's check context.
-              if (fileContext.includes('resume') || fileContext.includes('cv') || fileContext.includes('upload')) {
-                const blob = base64ToBlob(data.resumeFile, data.resumeFileType);
-                const file = new File([blob], data.resumeFileName, { type: data.resumeFileType });
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                el.files = dataTransfer.files;
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                filledCount++;
-                console.log(`[Smart Autofill] Filled File input with: ${data.resumeFileName}`);
-              }
-            } catch (e) {
-              console.error("File upload autofill failed", e);
-            }
-          }
-          return;
-        }
-
-        const contextInfo = getFieldContext(el);
-        if (!contextInfo) return; // Cannot infer what this field is
-
-        // --- Handle Radios and Checkboxes ---
-        if (el.type === 'radio' || el.type === 'checkbox') {
-          const groupName = el.name;
-          if (groupName && processedRadios.has(groupName)) return; // Already solved for this radio group
-          
-          // Try to match the overarching question of the radio group (e.g. from a fieldset legend or parent container text)
-          let questionContext = contextInfo;
-          let container = el.closest('fieldset, .radio-group, .form-group, div');
-          if (container && container.innerText) {
-            questionContext = container.innerText.toLowerCase().substring(0, 150); // limit length
-          }
-
-          const results = fuse.search(questionContext);
-          if (results.length > 0 && results[0].score < 0.6) {
-            const bestMatchKey = results[0].item.key;
-            const targetValue = data[bestMatchKey]; // e.g. "Yes" or "No"
-
-            if (targetValue) {
-              // Find the specific radio/checkbox in this group that matches the targetValue ("Yes" or "No")
-              let matchingInput = null;
-              
-              if (groupName) {
-                const groupInputs = document.querySelectorAll(`input[name="${groupName}"]`);
-                groupInputs.forEach(radio => {
-                   const radioContext = getFieldContext(radio);
-                   const valStr = targetValue.toLowerCase();
-                   if (radio.value.toLowerCase() === valStr || radioContext.includes(valStr) || radio.id.toLowerCase().includes(valStr)) {
-                     matchingInput = radio;
-                   }
-                });
-              } else {
-                 const radioContext = getFieldContext(el);
-                 const valStr = targetValue.toLowerCase();
-                 if (el.value.toLowerCase() === valStr || radioContext.includes(valStr)) {
-                   matchingInput = el;
-                 }
-              }
-
-              if (matchingInput) {
-                matchingInput.checked = true;
-                matchingInput.dispatchEvent(new Event('change', { bubbles: true }));
-                matchingInput.dispatchEvent(new Event('click', { bubbles: true })); // some frameworks need click
-                if (groupName) processedRadios.add(groupName);
-                filledCount++;
-                console.log(`[Smart Autofill] Checked Radio/Checkbox: ${bestMatchKey} -> ${targetValue}`);
-              }
-            }
-          }
-          return;
-        }
-
-        // --- Handle Text, URL, Email, Textarea, Select ---
-        // Exclude inputs that are checkboxes or radios (already handled above)
-        
-        const results = fuse.search(contextInfo);
-        
-        let match = null;
-        if (results.length > 0 && results[0].score < 0.65) {
-           match = results[0];
-        } else {
-           // Fallback: check if any searchTerm word >= 4 chars is present in contextInfo
-           for (let item of searchItems) {
-               const terms = item.searchTerms.split(" ").filter(t => t.length > 3); // words like 'name', 'email', 'phone'
-               for (let t of terms) {
-                   // if the context string includes the term (e.g. "enter your phone" includes "phone")
-                   if (contextInfo.includes(t)) {
-                       match = { item: item, score: 0.5 };
-                       break;
-                   }
-               }
-               if (match) break;
-           }
-        }
-        
-        if (match) {
-           if (data[match.item.key]) {
-             
-             // If Select dropdown, we do a fuzzy search of the options
-             if (el.tagName.toLowerCase() === 'select') {
-                let options = Array.from(el.options);
-                let targetFuzzy = new Fuse(options.map((opt, i) => ({ text: opt.text, index: i })), { keys: ['text'], threshold: 0.4 });
-                let optResults = targetFuzzy.search(data[match.item.key]);
-                if (optResults.length > 0) {
-                  el.selectedIndex = optResults[0].item.index;
-                  el.dispatchEvent(new Event('change', { bubbles: true }));
-                  filledCount++;
-                  console.log(`[Smart Autofill] Selected Dropdown for [${contextInfo}] (Matched: ${match.item.key}, Score: ${match.score.toFixed(2)})`);
-                }
-             } else {
-                // Text input / textarea
-                el.focus();
-                
-                // Try React/Wiz native setter first
-                let nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-                let nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
-                
-                if (el.tagName.toLowerCase() === 'textarea' && nativeTextAreaValueSetter) {
-                   nativeTextAreaValueSetter.call(el, data[match.item.key]);
-                } else if (nativeInputValueSetter) {
-                   nativeInputValueSetter.call(el, data[match.item.key]);
-                }
-                el.value = data[match.item.key];
-                
-                // Trigger events so frontend frameworks (React/Vue/Angular/Wiz) detect the change
-                el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-                
-                // Disaptch keyboard events to trigger certain lazy listeners
-                el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, composed: true, key: 'Enter' }));
-                el.dispatchEvent(new KeyboardEvent('keyup',   { bubbles: true, composed: true, key: 'Enter' }));
-
-                el.blur();
-                el.dispatchEvent(new Event('blur', { bubbles: true, composed: true }));
-                
-                // Add a visual highlight
-                const oldBg = el.style.backgroundColor;
-                el.style.backgroundColor = 'rgba(94, 23, 235, 0.1)';
-                setTimeout(() => el.style.backgroundColor = oldBg, 1500);
-
-                filledCount++;
-                console.log(`[Smart Autofill] Filled Field [${contextInfo}] with: ${match.item.key} (Score: ${match.score.toFixed(2)})`);
-             }
-          }
-        }
-      });
+      console.log(`[Smart Autofill] Initial Pass Complete. Filled: ${filledCount}. Now watching for new elements...`);
 
       sendResponse({ status: "success", filledCount: filledCount });
     });
 
-    return true; // Keep message channel open for async
+    return true; // Keep channel open
   }
 });
