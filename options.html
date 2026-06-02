@@ -310,6 +310,58 @@
           </div>
         </section>
 
+        <!-- LinkedIn Bot Settings -->
+        <section class="form-section" style="border-left: 3px solid #10b981; padding-left: 20px;">
+          <h2>🤖 LinkedIn Bot Settings</h2>
+          <p class="section-help">These settings control the LinkedIn auto-apply bot. Configure job filters and common question answers.</p>
+
+          <div class="grid">
+            <div class="input-group full-width">
+              <label for="blacklistKeywords">Blacklist Keywords (comma separated)</label>
+              <input type="text" id="blacklistKeywords" name="blacklistKeywords" placeholder="e.g. senior, lead, manager, unpaid, intern">
+              <small style="color: var(--text-light); font-size: 11px; margin-top: 4px;">Jobs containing these words in title/company will be skipped.</small>
+            </div>
+            <div class="input-group">
+              <label for="maxYearsRequired">Max Years Experience Filter</label>
+              <input type="number" id="maxYearsRequired" name="maxYearsRequired" placeholder="e.g. 3" min="0" max="20">
+              <small style="color: var(--text-light); font-size: 11px; margin-top: 4px;">Skip jobs requiring more than this many years.</small>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 20px; margin-bottom: 10px;">Common LinkedIn Questions</h3>
+          <p class="section-help">Default answers for common Easy Apply questions.</p>
+          <div class="grid">
+            <div class="input-group">
+              <label for="visaSponsorship">Do you require visa sponsorship?</label>
+              <select id="visaSponsorship" name="visaSponsorship">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="legallyAuthorized">Legally authorized to work?</label>
+              <select id="legallyAuthorized" name="legallyAuthorized">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="willingToRelocate">Willing to relocate?</label>
+              <select id="willingToRelocate" name="willingToRelocate">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label for="driversLicense">Have a valid driver's license?</label>
+              <select id="driversLicense" name="driversLicense">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
       </form>
     </div>
 
