@@ -2,6 +2,14 @@
 //  Smart Job Form Autofill — Content Script
 // ============================================================
 
+// Guard: prevent duplicate initialization if popup injects us into
+// a tab that already has the script running from the manifest injection.
+if (window.__smartAutofillLoaded) {
+  // Script already loaded — do nothing. The existing message listener
+  // handles DO_AUTOFILL and resets state on every click.
+} else {
+window.__smartAutofillLoaded = true;
+
 // ====== STATE ======
 let autofillEnabled  = false;
 let autofillData     = null;
@@ -138,44 +146,55 @@ function initFuse(profileData) {
     autofillData.lastName  = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
   }
 
-  // ── Alias dictionary (what labels maps to which key) ────────────────────
+  // ── Alias dictionary ─────────────────────────────────────────────────────
+  // IMPORTANT: These are the ONLY terms used for matching.
+  // Do NOT include words shared between keys (e.g. "name" must not appear
+  // in mothersName, fathersName — only in firstName/lastName/applicantName).
+  // "current" must not appear in currentSalary — only in jobTitle/designation.
   const ALIASES = {
-    firstName:           'first name given forename fname first-name',
-    lastName:            'last name family surname sur lname last-name',
-    applicantName:       'full name legal applicant complete fullname',
-    fathersName:         'father dad parent guardian paternal fathers',
-    mothersName:         'mother mom parent maternal mothers',
-    dob:                 'date of birth dob birthday born',
+    // ─ Identity ─────────────────────────────────────────────────────────────
+    firstName:           'first firstname given forename',
+    lastName:            'last lastname surname family sur',
+    applicantName:       'name fullname full applicant legal complete',
+    fathersName:         'father dad paternal guardian',
+    mothersName:         'mother mom maternal',
+    dob:                 'dob date birth birthday born',
     gender:              'gender sex',
-    bloodGroup:          'blood group type rhesus rh',
-    maritalStatus:       'marital status marriage single married spouse',
-    religion:            'religion belief faith',
-    caste:               'caste category community obc general sc st',
-    nationality:         'nationality citizenship citizen country',
-    email:               'email e-mail mail address',
-    phone:               'mobile phone cell contact telephone number',
-    altPhone:            'alternative emergency secondary backup mobile phone',
-    address:             'address street line residential location',
-    postOffice:          'post office po',
+    bloodGroup:          'blood group rhesus',
+    maritalStatus:       'marital married single spouse',
+    religion:            'religion faith belief',
+    caste:               'caste category obc general sc st',
+    nationality:         'nationality citizenship citizen',
+    // ─ Contact ──────────────────────────────────────────────────────────────
+    email:               'email mail',
+    phone:               'mobile phone cell telephone contact',
+    altPhone:            'alternative secondary emergency backup mobile',
+    // ─ Address ──────────────────────────────────────────────────────────────
+    address:             'address street residential location line',
+    postOffice:          'post office',
     district:            'district city town locality',
     state:               'state province region',
-    zipCode:             'zip code pincode postal',
-    educationExam:       'education degree qualification btech bsc mtech msc phd course examination highest',
+    zipCode:             'zip postal pincode',
+    // ─ Education ────────────────────────────────────────────────────────────
+    educationExam:       'education degree qualification btech bsc mtech phd course',
     educationSchool:     'school university college institute board',
-    educationYear:       'year of passing graduation yop completed',
+    educationYear:       'passing year graduation yop',
     educationMark:       'marks cgpa percentage score grade gpa',
-    currentSalary:       'current salary ctc earning',
-    expectedSalary:      'expected salary ctc desired',
-    employedByCompany:   'employed before company past previous',
-    knowAnyoneInCompany: 'know anyone referral employee friend',
-    linkedin:            'linkedin profile url',
-    github:              'github repository code url',
-    portfolio:           'portfolio website personal blog url',
-    skills:              'skills technologies tools programming languages stack',
-    experience:          'work experience years professional',
-    kaggle:              'kaggle data science competition profile',
-    authorizedWork:      'authorized legally work country right',
-    requireSponsorship:  'require sponsorship visa now future',
+    // ─ Career ───────────────────────────────────────────────────────────────
+    jobTitle:            'designation title role position current job',
+    currentSalary:       'salary ctc annual package compensation',
+    expectedSalary:      'expected salary desired ctc',
+    employedByCompany:   'employed before company previous',
+    knowAnyoneInCompany: 'referral anyone know employee',
+    // ─ Professional ─────────────────────────────────────────────────────────
+    linkedin:            'linkedin profile',
+    github:              'github repository code',
+    portfolio:           'portfolio website blog',
+    skills:              'skills technologies tools programming languages',
+    experience:          'experience years professional background',
+    kaggle:              'kaggle data science competition',
+    authorizedWork:      'authorized legally work',
+    requireSponsorship:  'sponsorship visa require',
   };
 
   const SKIP = new Set(['resumeFile', 'resumeFileName', 'resumeFileType', 'customQA', 'matchSensitivity']);
@@ -185,7 +204,10 @@ function initFuse(profileData) {
     .map(key => ({
       key,
       value: autofillData[key],
-      searchTerms: [camelToText(key), key, ALIASES[key] || ''].join(' ').trim()
+      // Use ONLY the curated alias as search terms.
+      // Never use camelToText(key) — it creates misleading substrings:
+      // e.g. camelToText('mothersName') = 'mothers name' → 'name' contaminates the index.
+      searchTerms: ALIASES[key] ?? key
     }));
 
   // Custom Q&A entries
@@ -270,18 +292,11 @@ function getBestMatch(contextInfo) {
   if (!fuse || !contextInfo) return null;
 
   const results = fuse.search(contextInfo);
+
+  // Only accept a match if the score is within the user's threshold.
+  // No keyword fallback — it causes cross-field contamination.
   if (results.length > 0 && results[0].score <= matchThreshold) {
     return results[0];
-  }
-
-  // Keyword substring fallback: useful for very short labels like "City"
-  for (const item of searchItems) {
-    const terms = item.searchTerms.split(' ').filter(t => t.length >= 4);
-    for (const t of terms) {
-      if (contextInfo.includes(t)) {
-        return { item, score: matchThreshold * 0.9 };
-      }
-    }
   }
 
   return null;
@@ -496,3 +511,5 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   return true; // keep async channel open
 });
+
+} // end of window.__smartAutofillLoaded guard
