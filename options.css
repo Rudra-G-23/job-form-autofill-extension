@@ -293,6 +293,78 @@ select:focus {
   background-color: rgba(255, 0, 0, 0.15) !important;
 }
 
+/* ── Preferences Panel (Sensitivity Slider) ────────────────────── */
+.pref-panel {
+  margin-bottom: 24px;
+  padding: 18px 20px;
+  background: rgba(94, 23, 235, 0.04);
+  border: 1px solid rgba(94, 23, 235, 0.12);
+  border-radius: 12px;
+}
+
+.pref-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.pref-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.pref-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.pref-hint {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.pref-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.pref-tag {
+  font-size: 12px;
+  color: var(--text-light);
+  white-space: nowrap;
+}
+
+input[type="range"]#matchSensitivity {
+  flex: 1;
+  height: 6px;
+  border-radius: 4px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  background: linear-gradient(to right, var(--primary) 0%, #e5e7eb 0%);
+}
+
+.pref-value {
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* ── Media Queries ─────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .grid {
     grid-template-columns: 1fr;
@@ -303,5 +375,12 @@ select:focus {
   }
   .qa-row {
     flex-direction: column;
+  }
+  .pref-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pref-slider-wrap {
+    min-width: unset;
   }
 }

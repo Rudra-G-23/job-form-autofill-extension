@@ -34,6 +34,23 @@
       </div>
     </div>
 
+    <!-- Extension Preferences (global, not per-profile) -->
+    <div class="pref-panel">
+      <div class="pref-row">
+        <div class="pref-label">
+          <span class="pref-title">Autofill Sensitivity</span>
+          <span class="pref-hint">Low = fewer, precise fills &nbsp;|&nbsp; High = more fills, may guess</span>
+        </div>
+        <div class="pref-slider-wrap">
+          <span class="pref-tag">Conservative</span>
+          <input type="range" id="matchSensitivity" name="matchSensitivity"
+            min="1" max="10" value="5" step="1">
+          <span class="pref-tag">Aggressive</span>
+          <span class="pref-value" id="sensitivityValue">5</span>
+        </div>
+      </div>
+    </div>
+
     <div class="form-container">
       <form id="options-form">
         
@@ -42,7 +59,15 @@
           <h2>Personal Information</h2>
           <div class="grid">
             <div class="input-group">
-              <label for="applicantName">Applicant Full Name / Legal Name</label>
+              <label for="firstName">First Name</label>
+              <input type="text" id="firstName" name="firstName" placeholder="John">
+            </div>
+            <div class="input-group">
+              <label for="lastName">Last Name / Surname</label>
+              <input type="text" id="lastName" name="lastName" placeholder="Doe">
+            </div>
+            <div class="input-group">
+              <label for="applicantName">Full Name (used as fallback)</label>
               <input type="text" id="applicantName" name="applicantName" placeholder="John Doe">
             </div>
             <div class="input-group">

@@ -1,5 +1,6 @@
 let appState = {
   activeProfileId: 'profile_default',
+  matchSensitivity: 5,
   profiles: {
     'profile_default': {
       name: 'Default Profile',
@@ -13,6 +14,14 @@ let appState = {
 document.addEventListener('DOMContentLoaded', () => {
   initOptions();
 
+  // Sensitivity slider — live value display
+  const slider = document.getElementById('matchSensitivity');
+  const sliderVal = document.getElementById('sensitivityValue');
+  slider.addEventListener('input', () => {
+    sliderVal.textContent = slider.value;
+    appState.matchSensitivity = Number(slider.value);
+  });
+
   // Profile Manager Listeners
   document.getElementById('profileSelector').addEventListener('change', (e) => {
     appState.activeProfileId = e.target.value;
@@ -20,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-add-profile').addEventListener('click', () => {
-    const name = prompt("Enter a name for the new profile:");
+    const name = prompt('Enter a name for the new profile:');
     if (name && name.trim()) {
       const newId = 'profile_' + Date.now();
       appState.profiles[newId] = {
@@ -38,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-rename-profile').addEventListener('click', () => {
     const profile = appState.profiles[appState.activeProfileId];
     if (!profile) return;
-    const name = prompt("Rename profile to:", profile.name);
+    const name = prompt('Rename profile to:', profile.name);
     if (name && name.trim()) {
       profile.name = name.trim();
       saveStateToStorage(() => renderProfileSelector());
@@ -47,10 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-delete-profile').addEventListener('click', () => {
     if (Object.keys(appState.profiles).length <= 1) {
-      alert("You must have at least one profile.");
+      alert('You must have at least one profile.');
       return;
     }
-    if (confirm("Are you sure you want to delete this profile?")) {
+    if (confirm('Are you sure you want to delete this profile?')) {
       delete appState.profiles[appState.activeProfileId];
       appState.activeProfileId = Object.keys(appState.profiles)[0];
       saveStateToStorage(() => {
@@ -76,9 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
       fileNameDisplay.textContent = file.name;
       const reader = new FileReader();
       reader.onload = (e) => {
-        const base64String = e.target.result;
         const profile = appState.profiles[appState.activeProfileId];
-        profile.data.resumeFile = base64String;
+        profile.data.resumeFile     = e.target.result;
         profile.data.resumeFileName = file.name;
         profile.data.resumeFileType = file.type;
       };
@@ -91,26 +99,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initOptions() {
   chrome.storage.local.get(null, (storageData) => {
-    // Migration from old flat version
     if (!storageData.profiles) {
+      // Migration: old flat data → default profile
       const oldKeys = Object.keys(storageData);
       if (oldKeys.length > 0) {
-        // We have old flat data, move it into default profile
         let migratedData = { customQA: [] };
-        oldKeys.forEach(k => {
-          migratedData[k] = storageData[k];
-        });
+        oldKeys.forEach(k => { migratedData[k] = storageData[k]; });
         appState.profiles['profile_default'].data = migratedData;
       }
-      saveStateToStorage(() => {
-        renderProfileSelector();
-        loadDataToForm();
-      });
+      saveStateToStorage(() => { renderProfileSelector(); loadDataToForm(); });
       return;
-    } else {
-      appState = storageData;
     }
-    
+
+    appState = { matchSensitivity: 5, ...storageData };
+
+    // Set slider
+    const slider = document.getElementById('matchSensitivity');
+    const sliderVal = document.getElementById('sensitivityValue');
+    slider.value = appState.matchSensitivity ?? 5;
+    sliderVal.textContent = slider.value;
+
     renderProfileSelector();
     loadDataToForm();
   });
@@ -206,15 +214,17 @@ function addQARow(qVal = "", aVal = "") {
 function saveOptions() {
   const profile = appState.profiles[appState.activeProfileId];
   if (!profile) return;
-  
-  // Clear old simple data except retain resume files since those are loaded async
-  const oldResumeFile = profile.data.resumeFile;
-  const oldResumeFileName = profile.data.resumeFileName;
-  const oldResumeFileType = profile.data.resumeFileType;
-  
+
+  // Retain resume files (loaded async, not in form inputs)
+  const { resumeFile, resumeFileName, resumeFileType } = profile.data;
+
   let newData = {};
 
-  const inputs = document.querySelectorAll('#options-form input:not(.qa-q):not(.qa-a), #options-form textarea, #options-form select');
+  // Save all form inputs EXCEPT the sensitivity slider and file input
+  // (matchSensitivity is stored at top-level of appState, not inside profile)
+  const inputs = document.querySelectorAll(
+    '#options-form input:not(.qa-q):not(.qa-a):not([name="matchSensitivity"]), #options-form textarea, #options-form select'
+  );
   inputs.forEach(input => {
     if (input.type === 'radio') {
       if (input.checked) newData[input.name] = input.value;
@@ -225,33 +235,34 @@ function saveOptions() {
     }
   });
 
-  // Re-attach resume base64
-  if (oldResumeFile) newData.resumeFile = oldResumeFile;
-  if (oldResumeFileName) newData.resumeFileName = oldResumeFileName;
-  if (oldResumeFileType) newData.resumeFileType = oldResumeFileType;
+  // Auto-fill full name if only first/last provided
+  if (!newData.applicantName && (newData.firstName || newData.lastName)) {
+    newData.applicantName = [newData.firstName, newData.lastName].filter(Boolean).join(' ');
+  }
 
-  // Compile Custom QA
-  let newCustomQA = [];
-  const qaRows = document.querySelectorAll('.qa-row');
-  qaRows.forEach(row => {
-    const q = row.querySelector('.qa-q').value;
-    const a = row.querySelector('.qa-a').value;
-    if (q && q.trim()) {
-      newCustomQA.push({ q: q.trim(), a: a.trim() });
-    }
+  // Re-attach resume
+  if (resumeFile)     newData.resumeFile     = resumeFile;
+  if (resumeFileName) newData.resumeFileName = resumeFileName;
+  if (resumeFileType) newData.resumeFileType = resumeFileType;
+
+  // Compile Custom Q&A
+  newData.customQA = [];
+  document.querySelectorAll('.qa-row').forEach(row => {
+    const q = row.querySelector('.qa-q').value.trim();
+    const a = row.querySelector('.qa-a').value.trim();
+    if (q) newData.customQA.push({ q, a });
   });
-  newData.customQA = newCustomQA;
 
   profile.data = newData;
 
+  // Save sensitivity as a global pref (top-level in appState)
+  appState.matchSensitivity = Number(document.getElementById('matchSensitivity').value);
+
   saveStateToStorage(() => {
     const statusMsg = document.getElementById('save-status');
-    statusMsg.textContent = 'Profile saved successfully!';
+    statusMsg.textContent = 'Profile saved!';
     statusMsg.className = 'status-msg success';
-    
-    setTimeout(() => {
-      statusMsg.textContent = '';
-    }, 3000);
+    setTimeout(() => { statusMsg.textContent = ''; }, 3000);
   });
 }
 
